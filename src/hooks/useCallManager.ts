@@ -501,7 +501,7 @@ export const useCallManager = () => {
       await connectMixedAudio(micStreamSafe, sysStreamSafe);
       console.log('CallManager: Connected to mixed audio WebSocket');
       
-      // Also connect to the transcription WebSocket
+      // Also connect to the transcription WebSocket (for Gemini processing)
       connectTranscription();
       console.log('CallManager: Connected to transcription WebSocket');
       

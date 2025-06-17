@@ -8,7 +8,7 @@ export type TranscriptionWSStatus = 'disconnected' | 'connecting' | 'connected' 
 interface BackendMessage {
   type: 'realtime' | 'fullSentence' | string;
   text?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface UseTranscriptionWebSocketResult {
@@ -48,6 +48,7 @@ export function useTranscriptionWebSocket(options?: TranscriptionWebSocketOption
   const [lastGeminiResponse, setLastGeminiResponse] = useState<string>('');
   
   const { onProcessSentence } = options || {};
+  const debounceTimerRef = useRef<number | null>(null);
 
   // Send stop command to control server
   const sendStopCommand = useCallback(() => {
@@ -157,16 +158,43 @@ export function useTranscriptionWebSocket(options?: TranscriptionWebSocketOption
           try {
             const data = JSON.parse(event.data) as BackendMessage;
             
-            if (data.type === 'realtime') {
-              setRealtimeText(data.text || '');
-            } else if (data.type === 'completed') {
+            // "Golden" transcript has arrived
+            if (data.type === 'completed' || data.type === 'fullSentence') {
+              // 1. Clear any existing fallback timer
+              if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+                debounceTimerRef.current = null;
+              }
+              
+              // 2. Process the high-quality sentence immediately
               const newSentence = data.text || '';
               setFullSentences(prev => [...prev, newSentence]);
               setFullTranscript(prev => prev + ' ' + newSentence);
-              
-              // Optional sentence processing callback
               if (onProcessSentence && newSentence) {
+                console.log('TranscriptionWebSocket: Processing golden sentence:', newSentence);
                 onProcessSentence(newSentence);
+              }
+            } 
+            // Real-time transcript is updating
+            else if (data.type === 'realtime') {
+              const currentText = data.text || '';
+              setRealtimeText(currentText);
+              
+              // 3. Set a fallback timer if the sentence appears complete
+              const trimmedText = currentText.trim();
+              if (trimmedText.length > 0 && ['.', '?', '!'].some(p => trimmedText.endsWith(p))) {
+                
+                // If a timer isn't already running, start one
+                if (!debounceTimerRef.current) {
+                  console.log('TranscriptionWebSocket: Starting debounce timer for:', trimmedText);
+                  debounceTimerRef.current = window.setTimeout(() => {
+                    console.log('TranscriptionWebSocket: Debounce timer fired for:', trimmedText);
+                    if (onProcessSentence) {
+                      onProcessSentence(trimmedText);
+                    }
+                    debounceTimerRef.current = null; // Clear the ref after firing
+                  }, 750); // 750ms delay
+                }
               }
             }
           } catch (error) {
@@ -206,6 +234,11 @@ export function useTranscriptionWebSocket(options?: TranscriptionWebSocketOption
       console.log('TranscriptionWebSocket: Closing data connection.');
       wsRef.current.close();
       wsRef.current = null;
+    }
+    // Clear any pending timers on disconnect
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
     setStatus('disconnected');
     console.log('TranscriptionWebSocket: Disconnected.');
