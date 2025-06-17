@@ -126,9 +126,8 @@ export const useCallManager = () => {
   const {
     connect: connectTranscription,
     disconnect: disconnectTranscription
-  } = useTranscriptionWebSocket(handleFinalizedSentence, (text) => {
-    // This is optional, but we can use it to update UI if needed
-    // For now, we're just providing it to avoid the error
+  } = useTranscriptionWebSocket({
+    onProcessSentence: handleFinalizedSentence
   });
 
   // State for insights

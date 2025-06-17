@@ -19,7 +19,12 @@ interface UseTranscriptionWebSocketResult {
   fullTranscript: string;
   connect: () => void;
   disconnect: () => void;
-  lastGeminiResponse: string | null;
+  lastGeminiResponse: string;
+  updateGeminiResponse: (response: string) => void;
+}
+
+interface TranscriptionWebSocketOptions {
+  onProcessSentence?: (sentence: string) => void;
 }
 
 /**
@@ -31,187 +36,221 @@ interface UseTranscriptionWebSocketResult {
  *   ws.disconnect();
  *   // Use ws.status, ws.realtimeText, ws.fullSentences, ws.error in UI
  */
-export const useTranscriptionWebSocket = (
-  onProcessSentence: (sentence: string) => void,
-  onRealtimeTranscript?: (transcript: string) => void
-) => {
+export function useTranscriptionWebSocket(options?: TranscriptionWebSocketOptions): UseTranscriptionWebSocketResult {
   const { toast } = useToast();
-  
+  const wsRef = useRef<WebSocket | null>(null);
+  const controlWsRef = useRef<WebSocket | null>(null);
   const [status, setStatus] = useState<TranscriptionWSStatus>('disconnected');
   const [error, setError] = useState<string | null>(null);
-  const [realtimeText, setRealtimeText] = useState('');
+  const [realtimeText, setRealtimeText] = useState<string>('');
   const [fullSentences, setFullSentences] = useState<string[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-
-  // Ref for the debounce timer
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [fullTranscript, setFullTranscript] = useState<string>('');
+  const [lastGeminiResponse, setLastGeminiResponse] = useState<string>('');
   
-  // Ref to prevent multiple debounce timers during a single utterance
-  const isWaitingForUtteranceEnd = useRef<boolean>(false);
-  
-  // Ref to hold the most recent interim sentence
-  const lastInterimSentence = useRef<string>('');
+  const { onProcessSentence } = options || {};
 
-  // Ref to store normalized sentences that have been processed to prevent duplicates
-  const processedSentencesRef = useRef<Set<string>>(new Set());
-  
-  const DEBOUNCE_DELAY = 1500; // ms
-
-  const normalizeSentence = useCallback((sentence: string): string => {
-    // Lowercase, trim, and remove all punctuation for better matching.
-    return sentence.trim().toLowerCase().replace(/[.,!?-]/g, '');
+  // Send stop command to control server
+  const sendStopCommand = useCallback(() => {
+    if (controlWsRef.current && controlWsRef.current.readyState === WebSocket.OPEN) {
+      console.log('TranscriptionWebSocket: Sending stop command to Control server');
+      
+      // Format the command exactly as in the test_stt_client.py
+      const stopCommand = JSON.stringify({
+        type: 'command',
+        command: 'stop'
+      });
+      
+      controlWsRef.current.send(stopCommand);
+      
+      // Give it a small delay to send before potentially closing
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          resolve();
+        }, 100);
+      });
+    }
+    return Promise.resolve();
   }, []);
 
-  const triggerProcessing = useCallback((sentence: string) => {
-    const normalized = normalizeSentence(sentence);
-    // Prevent processing of empty or already processed sentences.
-    if (!normalized || processedSentencesRef.current.has(normalized)) {
-      if (normalized) {
-        console.log('TranscriptionWebSocket: Skipping already processed sentence:', sentence);
-      }
-      return;
-    }
-    
-    console.log('TranscriptionWebSocket: Triggering processing for:', sentence);
-    processedSentencesRef.current.add(normalized);
-    onProcessSentence(sentence);
-  }, [onProcessSentence, normalizeSentence]);
+  // Update Gemini response
+  const updateGeminiResponse = useCallback((response: string) => {
+    setLastGeminiResponse(response);
+  }, []);
 
-  // Function to safely update realtime transcript
-  const updateRealtimeTranscript = useCallback((text: string) => {
-    // Update internal state
-    setRealtimeText(text);
-    
-    // Call the callback if provided
-    if (typeof onRealtimeTranscript === 'function') {
-      onRealtimeTranscript(text);
-    }
-  }, [onRealtimeTranscript]);
-
-  // Open WebSocket connection
+  // Connect to WebSocket server
   const connect = useCallback(() => {
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('TranscriptionWebSocket: Already connected to Data server');
       return;
     }
+
+    if (controlWsRef.current && controlWsRef.current.readyState === WebSocket.OPEN) {
+      console.log('TranscriptionWebSocket: Already connected to Control server');
+      return;
+    }
+
     setStatus('connecting');
     setError(null);
+
+    // Connect to Control server first (port 8011)
     try {
-      console.log('TranscriptionWebSocket: Attempting to connect to WebSocket server at ws://localhost:8012');
-      const ws = new WebSocket('ws://localhost:8012');
-      ws.onopen = () => {
-        setStatus('connected');
-        reconnectAttemptsRef.current = 0;
-        console.log('TranscriptionWebSocket: Connected successfully');
+      console.log('TranscriptionWebSocket: Connecting to Control server at ws://localhost:8011');
+      const controlWs = new WebSocket('ws://localhost:8011');
+      controlWsRef.current = controlWs;
+
+      controlWs.onopen = () => {
+        console.log('TranscriptionWebSocket: Control connection opened.');
+        // NO LONGER SENDING START COMMAND
       };
-      ws.onerror = (e) => {
-        setStatus('error');
-        setError('WebSocket error');
-        console.error('TranscriptionWebSocket: Connection error', e);
-      };
-      ws.onclose = (e) => {
-        setStatus('disconnected');
-        console.log('TranscriptionWebSocket: Connection closed', e.code, e.reason);
-      };
-      ws.onmessage = (event) => {
-        try {
-          const msg: BackendMessage = JSON.parse(event.data);
-          
-          if (msg.type === 'realtime' && typeof msg.text === 'string') {
-            // The service sends the full interim transcript, so we just replace it.
-            lastInterimSentence.current = msg.text;
-            updateRealtimeTranscript(msg.text); // Use the safe wrapper function
 
-            // If we are not already waiting for a pause, start a new timer.
-            if (!isWaitingForUtteranceEnd.current) {
-              isWaitingForUtteranceEnd.current = true;
-              
-              debounceTimerRef.current = setTimeout(() => {
-                const sentenceToProcess = lastInterimSentence.current.trim();
-                if (sentenceToProcess) {
-                  console.log('TranscriptionWebSocket: Debounce timer fired. Processing interim sentence.');
-                  triggerProcessing(sentenceToProcess);
-                }
-                // The pause is over, reset the flag to allow the next utterance to start a new timer.
-                isWaitingForUtteranceEnd.current = false;
-                debounceTimerRef.current = null;
-              }, DEBOUNCE_DELAY);
-            }
-
-          } else if (msg.type === 'fullSentence' && msg.text) {
-            console.log('TranscriptionWebSocket: Received full sentence:', msg.text);
-
-            // The definitive sentence has arrived. Cancel any pending interim processing.
-            if (debounceTimerRef.current) {
-              console.log('TranscriptionWebSocket: Debounce timer cleared by fullSentence.');
-              clearTimeout(debounceTimerRef.current);
-              debounceTimerRef.current = null;
-            }
-            
-            // This utterance is complete, so reset the flag.
-            isWaitingForUtteranceEnd.current = false;
-            // Clear the interim UI display.
-            updateRealtimeTranscript('');
-
-            // Process the definitive sentence.
-            triggerProcessing(msg.text);
-            
-            setFullSentences(prev => [...prev, msg.text || '']);
-
-          } else if (msg.type === 'error') {
-            console.error('TranscriptionWebSocket: Received error:', msg.message);
-            setError(msg.message || 'Unknown error from WebSocket');
-            setStatus('error');
-          } else {
-            // console.log("TranscriptionWebSocket: Received unknown message type:", msg.type);
-          }
-        } catch (err) {
-          console.error("TranscriptionWebSocket: Error parsing message", err);
-          setError("Failed to parse message from server.");
-          setStatus('error');
+      controlWs.onclose = () => {
+        console.log('TranscriptionWebSocket: Control server connection closed');
+        if (status !== 'disconnected') {
+          setStatus('disconnected');
         }
       };
-      wsRef.current = ws;
-    } catch (err) {
-      setStatus('error');
-      setError('Failed to connect WebSocket');
-      console.error('TranscriptionWebSocket: Failed to connect:', err);
-    }
-  }, [triggerProcessing, toast, updateRealtimeTranscript, normalizeSentence, onProcessSentence]);
 
-  // Close WebSocket connection
+      controlWs.onerror = (event) => {
+        console.error('TranscriptionWebSocket: Control server error:', event);
+        setStatus('error');
+        setError('Failed to connect to transcription control service.');
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to the transcription control service. Please try again.",
+          variant: "destructive",
+        });
+      };
+
+      // Now connect to the Data server (port 8012)
+      try {
+        console.log('TranscriptionWebSocket: Connecting to Data server at ws://localhost:8012');
+        const ws = new WebSocket('ws://localhost:8012');
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          console.log('TranscriptionWebSocket: Data server connection opened');
+          setStatus('connected');
+          
+          // No need to send start command to the Data server
+          // It only receives audio data
+        };
+
+        ws.onclose = () => {
+          console.log('TranscriptionWebSocket: Data server connection closed');
+          if (status !== 'disconnected') {
+            setStatus('disconnected');
+          }
+        };
+
+        ws.onerror = (event) => {
+          console.error('TranscriptionWebSocket: Data server error:', event);
+          setStatus('error');
+          setError('Failed to connect to transcription service.');
+          toast({
+            title: "Connection Error",
+            description: "Failed to connect to the transcription service. Please try again.",
+            variant: "destructive",
+          });
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data) as BackendMessage;
+            
+            if (data.type === 'realtime') {
+              setRealtimeText(data.text || '');
+            } else if (data.type === 'completed') {
+              const newSentence = data.text || '';
+              setFullSentences(prev => [...prev, newSentence]);
+              setFullTranscript(prev => prev + ' ' + newSentence);
+              
+              // Optional sentence processing callback
+              if (onProcessSentence && newSentence) {
+                onProcessSentence(newSentence);
+              }
+            }
+          } catch (error) {
+            console.error('TranscriptionWebSocket: Error parsing message:', error);
+          }
+        };
+      } catch (error) {
+        console.error('TranscriptionWebSocket: Error connecting to Data server:', error);
+        setStatus('error');
+        setError('Failed to connect to transcription service');
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to the data server. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('TranscriptionWebSocket: Error connecting to Control server:', error);
+      setStatus('error');
+      setError('Failed to connect to transcription control service');
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to the control server. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [status, toast, onProcessSentence]);
+
+  // Close WebSocket connections
   const disconnect = useCallback(() => {
+    if (controlWsRef.current) {
+      console.log('TranscriptionWebSocket: Closing control connection.');
+      controlWsRef.current.close();
+      controlWsRef.current = null;
+    }
     if (wsRef.current) {
+      console.log('TranscriptionWebSocket: Closing data connection.');
       wsRef.current.close();
       wsRef.current = null;
     }
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
     setStatus('disconnected');
-    console.log('TranscriptionWebSocket: Disconnected');
-    
-    // Clear processed sentences on disconnect
-    processedSentencesRef.current.clear();
+    console.log('TranscriptionWebSocket: Disconnected.');
   }, []);
+
+  // Function to normalize sentences
+  const normalizeSentence = useCallback((sentence: string): string => {
+    if (!sentence) return '';
+    // Remove leading/trailing whitespace
+    return sentence.trim();
+  }, []);
+
+  // Trigger the sentence processing
+  const triggerProcessing = useCallback((sentence: string) => {
+    if (onProcessSentence) {
+      const normalizedSentence = normalizeSentence(sentence);
+      if (normalizedSentence) {
+        onProcessSentence(normalizedSentence);
+      }
+    }
+  }, [onProcessSentence, normalizeSentence]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      // Clear processed sentences on unmount
-      processedSentencesRef.current.clear();
+      // First try to send the stop command
+      sendStopCommand().then(() => {
+        // Then close both connections
+        if (controlWsRef.current) {
+          controlWsRef.current.close();
+          controlWsRef.current = null;
+        }
+        
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+      });
     };
-  }, []);
+  }, [sendStopCommand]);
 
-  // Compute full transcript from sentences
-  const fullTranscript = fullSentences.join('\n');
+  // Update realtime transcription
+  const updateRealtimeTranscript = useCallback((text: string) => {
+    setRealtimeText(text);
+  }, []);
 
   return {
     status,
@@ -221,6 +260,7 @@ export const useTranscriptionWebSocket = (
     fullTranscript,
     connect,
     disconnect,
-    lastGeminiResponse: null,
+    lastGeminiResponse,
+    updateGeminiResponse,
   };
 }

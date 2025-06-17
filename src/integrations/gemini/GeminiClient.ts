@@ -32,8 +32,8 @@ const defaultSettings: ModelSettings = {
  */
 class GeminiClient {
   private static instance: GeminiClient;
-  private genAI: GoogleGenerativeAI | null = null;
-  private model: GenerativeModel | null = null;
+  private genAI: GoogleGenerativeAI;
+  private model: GenerativeModel;
   private apiKey: string | null = null;
   private settings: ModelSettings = {
     model: "gemini-1.5-flash-latest",
@@ -52,15 +52,9 @@ class GeminiClient {
   };
 
   private constructor() {
-    // Load the API key from localStorage first to avoid bundling it in the client code.
-    // This prevents accidental exposure of the key in version control or during build.
-    if (typeof window !== "undefined") {
-      this.apiKey = window.localStorage.getItem("geminiApiKey");
-    }
-
-    // IMPORTANT: We deliberately do NOT fall back to any build-time environment variable here.
-    // This guarantees that the API key is never bundled into the client code.
-
+    // In a Vite project, environment variables are exposed on `import.meta.env`
+    // and must be prefixed with VITE_ to be accessible in the client.
+    this.apiKey = import.meta.env.VITE_GEMINI_API_KEY || null;
     console.log("GeminiClient: Constructor called");
 
     // Try to load settings from localStorage
@@ -77,11 +71,11 @@ class GeminiClient {
 
     if (!this.apiKey) {
       console.error(
-        "GeminiClient: API key is not defined. Please add it to localStorage under the key 'geminiApiKey'."
+        "GeminiClient: API key is not defined. Please set VITE_GEMINI_API_KEY environment variable."
       );
       // Fallback to a dummy object to avoid crashing the app
-      this.genAI = null;
-      this.model = null;
+      this.genAI = {} as GoogleGenerativeAI;
+      this.model = {} as GenerativeModel;
       return;
     }
     
@@ -99,13 +93,8 @@ class GeminiClient {
 
     } catch (error) {
       console.error("GeminiClient: Error initializing GoogleGenAI:", error);
-      this.genAI = null;
-      this.model = null;
-    }
-
-    // Persist the key in localStorage if it came from the environment variable.
-    if (this.apiKey && typeof window !== "undefined") {
-      window.localStorage.setItem("geminiApiKey", this.apiKey);
+      this.genAI = {} as GoogleGenerativeAI;
+      this.model = {} as GenerativeModel;
     }
   }
 
@@ -180,7 +169,7 @@ class GeminiClient {
    * Sends a one-off, stateless message. Used for things like the test chat window.
    */
   public async sendStatelessMessage(message: string): Promise<string> {
-    if (!this.model) {
+    if (!this.model || !this.model.startChat) {
       console.error("GeminiClient: Model is not initialized, cannot send message.");
       return JSON.stringify({ error: "Model not initialized" });
     }

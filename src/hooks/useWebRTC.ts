@@ -90,41 +90,41 @@ export const useWebRTC = () => {
       
       // Try the standard API
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
-        
-      // Also try to capture microphone audio and combine streams
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1920, max: 1920 },
+            height: { ideal: 1080, max: 1080 },
+            frameRate: { ideal: 30, max: 30 }
+          },
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true
-          },
-          video: false
+          }
         });
+        
+        // Also try to capture microphone audio and combine streams
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
           
-        // Create a new stream that combines both screen and mic
-        const combinedStream = new MediaStream();
+          // Create a new stream that combines both screen and mic
+          const combinedStream = new MediaStream();
           
-        // Add all tracks from screen stream
-        screenStream.getTracks().forEach(track => {
-          combinedStream.addTrack(track);
-        });
+          // Add all tracks from screen stream
+          screenStream.getTracks().forEach(track => {
+            combinedStream.addTrack(track);
+          });
           
-        // Add mic audio track
-        micStream.getAudioTracks().forEach(track => {
-          combinedStream.addTrack(track);
-        });
+          // Add mic audio track
+          micStream.getAudioTracks().forEach(track => {
+            combinedStream.addTrack(track);
+          });
           
         // Use the combined stream
         screenStreamRef.current = screenStream;
@@ -144,18 +144,18 @@ export const useWebRTC = () => {
           isAudioEnabled: true,
           stream: combinedStream,
           error: null,
-        });
-          
+            });
+            
         console.log('useWebRTC: Combined screen and microphone streams successfully');
         return combinedStream;
       } catch (micError) {
         console.warn('useWebRTC: Failed to get microphone access, continuing with just screen audio:', micError);
-          
+                
         // Continue with just the screen stream
         screenStreamRef.current = screenStream;
-          
+                
         // Set up track ended handlers
-        screenStream.getTracks().forEach(track => {
+                screenStream.getTracks().forEach(track => {
           track.onended = () => {
             console.log(`useWebRTC: Track ended: ${track.kind} - ${track.label}`);
             if (track.kind === 'video') {
@@ -164,14 +164,14 @@ export const useWebRTC = () => {
           };
         });
           
-        setState({
-          isScreenSharing: true,
+      setState({
+        isScreenSharing: true,
           isAudioEnabled: screenStream.getAudioTracks().length > 0,
-          stream: screenStream,
-          error: null,
-        });
-          
-        return screenStream;
+        stream: screenStream,
+        error: null,
+      });
+
+      return screenStream;
       }
     } catch (err) {
       console.error('useWebRTC: Failed to start screen sharing:', err);
@@ -183,7 +183,7 @@ export const useWebRTC = () => {
         stream: null,
         error: 'Failed to start screen sharing. Please try again or use a different browser.'
       });
-        
+      
       throw err;
     }
   }, []);

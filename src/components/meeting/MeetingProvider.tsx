@@ -62,13 +62,13 @@ interface MeetingContextValue {
 
 const MeetingContext = createContext<MeetingContextValue | undefined>(undefined);
 
-export const useMeetingContext = () => {
+export function useMeetingContext(): MeetingContextValue {
   const context = useContext(MeetingContext);
   if (!context) {
-    throw new Error('useMeetingContext must be used within a MeetingProvider');
+    throw new Error("useMeetingContext must be used within a MeetingProvider");
   }
   return context;
-};
+}
 
 interface MeetingProviderProps {
   children: ReactNode;

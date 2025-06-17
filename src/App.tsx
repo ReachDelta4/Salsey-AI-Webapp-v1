@@ -5,13 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
-import AuthPage from "./pages/auth/AuthPage";
-import NotFound from "./pages/NotFound";
-import Profile from "./pages/Profile";
+import { lazy, Suspense } from "react";
 import { MeetingStateProvider } from "@/hooks/use-meeting-state";
 import StickyCallBar from "@/components/StickyCallBar";
 import UnboundAIChat from "@/components/UnboundAIChat";
+
+const Index = lazy(() => import("./pages/Index"));
+const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 const queryClient = new QueryClient();
 
@@ -26,12 +28,14 @@ const App = () => (
               <UnboundAIChat />
               <Toaster />
               <Sonner />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth/*" element={<AuthPage />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense fallback={<div>Loading...</div>}>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth/*" element={<AuthPage />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
             </MeetingStateProvider>
           </AuthProvider>
         </BrowserRouter>

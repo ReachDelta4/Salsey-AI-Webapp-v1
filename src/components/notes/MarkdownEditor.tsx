@@ -6,11 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
 import TextareaAutosize from "react-textarea-autosize";
 import remarkBreaks from "remark-breaks";
-import jsPDF from "jspdf";
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-import { saveAs } from "file-saver";
-import { markdownToDocxBlob } from "@/lib/markdown-to-docx";
 import { saveToFile, openFile } from "@/lib/file-utils";
 
 const MarkdownEditor = () => {
@@ -59,9 +54,11 @@ const MarkdownEditor = () => {
   const handleExportPdf = async () => {
     if (!htmlPreviewRef.current) return;
     const element = htmlPreviewRef.current;
-    const pdf = new jsPDF({ unit: "pt", format: "a4" });
     
     try {
+      const { default: jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+
       await pdf.html(element, {
         x: 20,
         y: 20,
@@ -88,6 +85,7 @@ const MarkdownEditor = () => {
   // Export as DOCX
   const handleExportDocx = async () => {
     try {
+      const { markdownToDocxBlob } = await import("@/lib/markdown-to-docx");
       const docxBlob = await markdownToDocxBlob(markdown, activeMeeting?.title || "Notes");
       
       const fileName = activeMeeting?.title ? 
@@ -153,11 +151,13 @@ const MarkdownEditor = () => {
       setMarkdown(text);
       setIsEditing(true);
     } else if (ext === "docx") {
+      const { default: mammoth } = await import("mammoth");
       const arrayBuffer = await file.arrayBuffer();
       const result = await mammoth.extractRawText({ arrayBuffer });
       setMarkdown(result.value);
       setIsEditing(true);
     } else if (ext === "pdf") {
+      const { default: pdfjsLib } = await import("pdfjs-dist");
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = "";

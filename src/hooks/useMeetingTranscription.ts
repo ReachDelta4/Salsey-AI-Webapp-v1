@@ -9,13 +9,13 @@ export const useMeetingTranscription = () => {
     error: transcriptionError,
     connect: connectTranscription,
     disconnect: disconnectTranscription,
-  } = useTranscriptionWebSocket(
+  } = useTranscriptionWebSocket({
     // Provide a no-op function for sentence processing
-    (sentence) => {
+    onProcessSentence: (sentence) => {
       // This component doesn't need to process sentences
       console.log('useMeetingTranscription: Received sentence but not processing:', sentence);
     }
-  );
+  });
 
   return {
     fullTranscript,

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { showCustomToast } from "@/components/ui/custom-toast";
 
@@ -23,7 +23,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+  const currentPathRef = useRef(location.pathname);
   const hasShownSignInToast = useRef(false);
+
+  // Keep ref updated with latest pathname without causing re-renders
+  useEffect(() => {
+    currentPathRef.current = location.pathname;
+  }, [location.pathname]);
 
   useEffect(() => {
     // Set up auth state listener first
@@ -37,7 +44,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             showCustomToast("Successfully signed in", "success", 2000);
             hasShownSignInToast.current = true;
           }
-          navigate("/");
+          // Only redirect to the dashboard if the user is currently on an auth-related page
+          // This prevents unexpected navigation (e.g. from Profile back to Home) when the
+          // access token is silently refreshed in the background.
+          if (currentPathRef.current.startsWith("/auth")) {
+            navigate("/");
+          }
         } else if (event === 'TOKEN_REFRESHED') {
           // Do not show toast on token refresh
         } else if (event === 'SIGNED_OUT') {

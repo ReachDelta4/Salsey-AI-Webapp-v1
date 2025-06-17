@@ -45,13 +45,13 @@ export function useMeetingStreams(): UseMeetingStreamsResult {
     fullSentences,
     connect: connectTranscription,
     disconnect: disconnectTranscription
-  } = useTranscriptionWebSocket(
+  } = useTranscriptionWebSocket({
     // Provide a no-op function for sentence processing
-    (sentence) => {
+    onProcessSentence: (sentence) => {
       // This component doesn't need to process sentences
       console.log('useMeetingStreams: Received sentence but not processing:', sentence);
     }
-  );
+  });
   
   // Start meeting: start screen sharing and connect to transcription service
   const startMeeting = useCallback(async () => {

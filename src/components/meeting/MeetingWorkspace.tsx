@@ -1,7 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import FloatingNotesWidget from "@/components/FloatingNotesWidget";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -14,6 +13,8 @@ import ScreenShareVideo from "./ScreenShareVideo";
 import LiveTranscriptDisplay from "./LiveTranscriptDisplay";
 import LeftInsightsPanel from "./LeftInsightsPanel";
 import RightInsightsPanel from "./RightInsightsPanel";
+
+const FloatingNotesWidget = lazy(() => import("@/components/FloatingNotesWidget"));
 
 interface MeetingWorkspaceProps {
   isCallActive: boolean;
@@ -202,7 +203,9 @@ const MeetingWorkspace = ({
       </div>
       
       {/* Floating Notes Widget */}
-      <FloatingNotesWidget />
+      <Suspense fallback={null}>
+        <FloatingNotesWidget />
+      </Suspense>
     </div>
   );
 };
