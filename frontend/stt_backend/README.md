@@ -1,142 +1,142 @@
-# Optimized RealtimeSTT for CPU
+# Real-time Speech-to-Text Server
 
-This package provides an optimized configuration for running RealtimeSTT on CPU with real-time transcription capabilities. It is specifically tuned for systems with limited resources, such as Intel i5 processors with 8GB RAM.
+This directory contains server configurations for real-time speech transcription using the RealtimeSTT framework, optimized for different hardware and language configurations.
 
-## Files Overview
+## Available Server Configurations
 
-- `start_stt_server_optimized_realtime.bat` - Optimized batch file for starting the STT server with real-time transcription
-- `optimized_realtime_stt.py` - Python module with optimized STT configuration
-- `realtime_stt_websocket_server.py` - WebSocket server implementation for real-time STT
-- `test_stt_client.py` - Test client for connecting to the WebSocket server
+### 1. CPU Optimized (English-only)
+**File:** `start_stt_server_optimized_realtime.bat`
 
-## Key Optimizations
+This configuration is optimized for CPU usage with the tiny Whisper model for English-only transcription. It's suitable for:
+- Systems without a GPU
+- Single-user or limited multi-user environments (1-3 users)
+- English-only transcription needs
+- Low-resource environments
 
-1. **CPU Threading Control**
-   - Limited thread usage to prevent resource contention
-   - `OMP_NUM_THREADS=2`, `MKL_NUM_THREADS=2`, `NUMEXPR_MAX_THREADS=2`
+### 2. GPU Optimized (Multilingual)
+**File:** `start_stt_server_gpu_multilingual.bat`
 
-2. **Aggressive Latency Control**
-   - `allowed_latency_limit=15` - Very strict limit to prevent audio queue overflow
-   - `realtime_processing_pause=0.005` - Frequent real-time updates
-   - `handle_buffer_overflow=True` - Properly handles overflows
+This configuration is optimized for NVIDIA GPUs with the medium Whisper model for multilingual transcription, specifically tuned for:
+- Hindi, English, and Telugu language support
+- Multi-user environments (up to 15 users per GPU)
+- Systems with NVIDIA GPUs (minimum 8GB VRAM recommended)
+- Real-time transcription with lower latency
 
-3. **Memory Management**
-   - Uses a single model for both real-time and final transcription
-   - `use_main_model_for_realtime=True`
-   - Minimal batch sizes: `batch_size=1`, `realtime_batch_size=1`
+## Hardware Requirements
 
-4. **VAD Configuration**
-   - Optimized Silero VAD settings: `silero_sensitivity=0.4`
-   - Uses ONNX for faster processing: `silero_use_onnx=True`
-   - Disabled problematic VAD filter: Removed `faster_whisper_vad_filter`
+### CPU Mode
+- **Minimum:** 4-core CPU (Intel i5-8250U or better)
+- **Recommended:** 8-core CPU
+- **RAM:** 8GB minimum, 16GB recommended
+- **Disk Space:** 5GB for models and caching
 
-5. **Fast Response Times**
-   - Short minimum recording: `min_length_of_recording=0.05`
-   - Quick gap between recordings: `min_gap_between_recordings=0.05`
-   - Fast post-speech silence: `post_speech_silence_duration=0.2`
+### GPU Mode
+- **GPU:** NVIDIA GPU with at least 8GB VRAM (RTX 3060 or better recommended)
+- **CUDA:** CUDA 11.7+ and cuDNN installed
+- **CPU:** 4+ cores
+- **RAM:** 16GB minimum
+- **Disk Space:** 10GB for models and caching
 
-## Usage Instructions
+## Installation
 
-### Running the Server
-
-#### Option 1: Using the Batch File
-
-Simply run the batch file to start the server with optimized settings:
-
-```bash
-.\start_stt_server_optimized_realtime.bat
-```
-
-#### Option 2: Using Python Directly
-
-Run the standalone Python implementation:
-
-```bash
-python optimized_realtime_stt.py
-```
-
-#### Option 3: Running the WebSocket Server
-
-Start the WebSocket server for network clients:
-
-```bash
-python realtime_stt_websocket_server.py
-```
-
-### Testing the WebSocket Server
-
-You can test the WebSocket server using the provided test client:
-
-```bash
-# Stream from microphone
-python test_stt_client.py
-
-# Stream from an audio file
-python test_stt_client.py --file path/to/audio.wav
-```
-
-## WebSocket API
-
-The WebSocket server accepts the following message types:
-
-1. **Audio Data**
-   ```json
-   {
-     "type": "audio",
-     "data": "base64-encoded-audio-data",
-     "sample_rate": 16000
-   }
+1. Install the RealtimeSTT package:
+   ```
+   pip install RealtimeSTT
    ```
 
-2. **Commands**
-   ```json
-   {
-     "type": "command",
-     "command": "start|stop|clear"
-   }
+2. If using GPU mode, install CUDA and PyTorch with CUDA support:
+   ```
+   # For CUDA 11.8
+   pip install torch==2.5.1+cu118 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+
+   # For CUDA 12.1
+   pip install torch==2.5.1+cu121 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
    ```
 
-The server responds with:
+## Usage
 
-1. **Real-time Transcription**
-   ```json
-   {
-     "type": "realtime",
-     "text": "Partial transcription text..."
-   }
+### Starting the Server
+
+1. **CPU Mode (English-only):**
+   ```
+   start_stt_server_optimized_realtime.bat
    ```
 
-2. **Completed Transcription**
-   ```json
-   {
-     "type": "completed",
-     "text": "Final transcription text."
-   }
+2. **GPU Mode (Multilingual):**
+   ```
+   start_stt_server_gpu_multilingual.bat
    ```
 
-3. **Status Updates**
-   ```json
-   {
-     "type": "status",
-     "status": "recording_started|recording_stopped|cleared"
-   }
-   ```
+The server will start on port 8012 and be accessible via WebSocket at `ws://localhost:8012`.
+
+### Connecting to the Server
+
+You can connect to the server using the included WebSocket client example or any WebSocket client that supports binary data transmission. See `realtime_stt_websocket_server.py` for the protocol details.
+
+## Configuration Parameters Explained
+
+### Key Parameters
+
+- **model**: Size/type of Whisper model ('tiny', 'base', 'small', 'medium', 'large')
+- **language**: Language code or 'auto' for language detection
+- **compute_type**: Computation precision ('float32', 'float16', 'int8')
+- **device**: Computation device ('cpu' or 'cuda')
+- **batch_size**: How many audio segments to process at once
+- **allowed_latency_limit**: Maximum allowed latency in milliseconds
+- **silero_sensitivity**: Sensitivity for voice activity detection (0.0-1.0)
+
+### CPU vs. GPU Optimization
+
+The CPU and GPU configurations differ in several key ways:
+
+1. **Model Size**: 
+   - CPU uses 'tiny' for lower resource usage
+   - GPU uses 'medium' for better accuracy
+
+2. **Computation Type**: 
+   - CPU uses 'int8' quantization for better performance
+   - GPU uses 'float16' for better accuracy while maintaining performance
+
+3. **Batch Size**: 
+   - CPU uses smaller batch sizes (1)
+   - GPU uses larger batch sizes (16) to leverage parallel processing
+
+4. **Real-time Processing**: 
+   - GPU has more aggressive real-time processing settings
+   - CPU has more conservative settings to prevent overload
 
 ## Troubleshooting
 
-If you still encounter audio queue overflow issues:
+### Common Issues
 
-1. Further reduce `allowed_latency_limit` to 10
-2. Increase `OMP_NUM_THREADS` and other thread settings if you have more cores
-3. Use an even smaller model (like `tiny` instead of `tiny.en`) 
-4. Disable real-time transcription completely for final-only transcription
-5. Consider upgrading your hardware for better performance
+1. **"CUDA not available" error**:
+   - Ensure NVIDIA drivers are up to date
+   - Verify CUDA and PyTorch with CUDA are correctly installed
+   - Check `nvidia-smi` command works in your terminal
 
-## System Requirements
+2. **High CPU usage**:
+   - Reduce batch_size parameter
+   - Consider using a smaller model
+   - Set OMP_NUM_THREADS to match your core count
 
-- Python 3.8+
-- PyAudio
-- RealtimeSTT 0.3.104+
-- Faster-Whisper 1.1.1+
-- WebSockets library (for WebSocket server and client)
-- NumPy 
+3. **Delayed transcription**:
+   - Adjust allowed_latency_limit to a higher value
+   - Check your system for other resource-intensive processes
+
+4. **Memory errors**:
+   - Reduce batch size
+   - Use a smaller model
+   - Use int8 quantization instead of float16
+
+## Multi-User Setup
+
+For information on deploying this server for multiple users, please see the `MULTI_USER_DEPLOYMENT.md` file in this directory.
+
+## Language Support
+
+- **English-only mode** (tiny.en model): Optimized for English speech recognition
+- **Multilingual mode** (medium model): Supports 100+ languages with specific optimizations for Hindi, English, and Telugu through the initial prompt
+
+## Credits
+
+Based on the RealtimeSTT library by Kolja Beigel: https://github.com/KoljaB/RealtimeSTT 

@@ -32,9 +32,5 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    define: {
-      // Make env variables available globally in the app
-      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),
-    }
   };
 });

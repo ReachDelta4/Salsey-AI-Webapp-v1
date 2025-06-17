@@ -1,15 +1,15 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import MainLayout from "@/components/layout/MainLayout";
 import MeetingWorkspace from "@/components/meeting/MeetingWorkspace";
 import CallTimer from "@/components/meeting/CallTimer";
 import MeetingControls from "@/components/MeetingControls";
-import MeetingDialogsManager from "@/components/meeting/MeetingDialogsManager";
+const MeetingDialogsManager = lazy(() => import("@/components/meeting/MeetingDialogsManager"));
 import { MeetingProvider, useMeetingContext } from "@/components/meeting/MeetingProvider";
 import { useMeetingPageLogic } from "@/hooks/useMeetingPageLogic";
 import { TranscriptionWSStatus } from "@/hooks/useTranscriptionWebSocket";
-import { StartCallDialog } from "@/components/meeting/StartCallDialog";
+const StartCallDialog = lazy(() => import("@/components/meeting/StartCallDialog").then(module => ({ default: module.StartCallDialog })));
 
 const MeetingPageContent = () => {
   const {
@@ -160,24 +160,28 @@ const MeetingPageContent = () => {
         </div>
       </div>
       
-      <MeetingDialogsManager
-        showMeetingDialog={showMeetingDialog}
-        showEndCallConfirmation={showEndCallConfirmation}
-        onCloseMeetingDialog={handleCloseMeetingDialog}
-        onCloseEndCallConfirmation={() => setShowEndCallConfirmation(false)}
-        onConfirmEndCall={handleConfirmEndCall}
-        onSaveMeeting={handleSaveMeeting}
-        transcript={formattedTranscript}
-        summary={summary}
-        insights={formattedInsights}
-        saveProgress={savingProgress}
-      />
+      <Suspense fallback={null}>
+        <MeetingDialogsManager
+          showMeetingDialog={showMeetingDialog}
+          showEndCallConfirmation={showEndCallConfirmation}
+          onCloseMeetingDialog={handleCloseMeetingDialog}
+          onCloseEndCallConfirmation={() => setShowEndCallConfirmation(false)}
+          onConfirmEndCall={handleConfirmEndCall}
+          onSaveMeeting={handleSaveMeeting}
+          transcript={formattedTranscript}
+          summary={summary}
+          insights={formattedInsights}
+          saveProgress={savingProgress}
+        />
+      </Suspense>
 
-      <StartCallDialog
-        open={showStartCallDialog}
-        onOpenChange={(open) => !open && handleCloseStartCallDialog()}
-        onSubmit={handleStartCall}
-      />
+      <Suspense fallback={null}>
+        <StartCallDialog
+          open={showStartCallDialog}
+          onOpenChange={(open) => !open && handleCloseStartCallDialog()}
+          onSubmit={handleStartCall}
+        />
+      </Suspense>
     </MainLayout>
   );
 };
