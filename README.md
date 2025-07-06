@@ -1,8 +1,8 @@
-# Meeting Mojo
+# Salsey AI
 
 **The ultimate meeting assistant for sales professionals.**
 
-Meeting Mojo is a commercial software tool designed to help sales teams, consultants, and founders close more deals. It captures every critical moment of your sales calls, provides AI-powered analysis to uncover client needs, and ensures you never miss a follow-up.
+Salsey AI is a commercial software tool designed to help sales teams, consultants, and founders close more deals. It captures every critical moment of your sales calls, provides AI-powered analysis to uncover client needs, and ensures you never miss a follow-up.
 
 ## The Problem
 
@@ -10,13 +10,13 @@ In a sales call, you're juggling multiple tasks: presenting your product, unders
 
 ## The Solution
 
-Meeting Mojo is your AI-powered co-pilot for every sales meeting. It provides:
+Salesy AI is your AI-powered co-pilot for every sales meeting. It provides:
 
--   **Live Transcription:** Focus on the conversation, not on note-taking. Meeting Mojo transcribes the entire call in real-time.
+-   **Live Transcription:** Focus on the conversation, not on note-taking. Salesy AI transcribes the entire call in real-time.
 -   **AI-Driven Sales Insights:** Automatically identify customer pain points, budget discussions, key decision-makers, and action items.
 -   **Centralized Intelligence:** A single source of truth for every customer interaction, enabling better forecasting and team collaboration.
 
-With Meeting Mojo, you can ensure every lead is handled with precision and turn more conversations into revenue.
+With Salesy AI, you can ensure every lead is handled with precision and turn more conversations into revenue.
 
 ## Key Features for Sales Professionals
 
@@ -31,7 +31,7 @@ With Meeting Mojo, you can ensure every lead is handled with precision and turn 
 
 ## Technology Stack
 
-This section provides an overview of the technologies used to build Meeting Mojo. It is intended for internal developers.
+This section provides an overview of the technologies used to build Salesy AI. It is intended for internal developers.
 
 -   **Frontend:** React, TypeScript, Vite, Tailwind CSS
 -   **Real-time STT Backend:** Python, WebSockets, `RealtimeSTT`, `faster-whisper`
